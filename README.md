@@ -2,7 +2,6 @@
   <strong>English</strong> · <a href="./README.ru.md">Русский</a>
 </p>
 <br/>
-<img src="/assets/banner.png"/>
 
 # Orcestr Media Transcriber
 
