@@ -1,5 +1,4 @@
 <p align="right">
-  <img src="./assets/orcestr-logo.png" alt="Orcestr logo" width="42" height="42" align="left" />
   <strong>English</strong> · <a href="./README.ru.md">Русский</a>
 </p>
 <br/>
