@@ -1,13 +1,22 @@
 import axios from 'axios';
+import { invoke } from '@tauri-apps/api/core';
 import type { TranscriptionJob } from './types';
+import { isDesktopApp } from './desktop';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+let apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api';
 const REQUEST_TIMEOUT_MS = 30 * 60_000;
 
 const http = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: apiBaseUrl,
   timeout: REQUEST_TIMEOUT_MS,
 });
+
+export async function configureApi(): Promise<void> {
+  if (!isDesktopApp()) return;
+  const backendOrigin = await invoke<string>('backend_origin');
+  apiBaseUrl = `${backendOrigin}/api`;
+  http.defaults.baseURL = apiBaseUrl;
+}
 
 export async function fetchTranscriptions(): Promise<TranscriptionJob[]> {
   const { data } = await http.get<TranscriptionJob[]>('/transcriptions');
@@ -62,9 +71,9 @@ export async function uploadTranscriptionFile(
 }
 
 export function jobEventsUrl(jobId: string): string {
-  return `${API_BASE_URL}/transcriptions/${jobId}/events`;
+  return `${apiBaseUrl}/transcriptions/${jobId}/events`;
 }
 
 export function transcriptDownloadUrl(jobId: string): string {
-  return `${API_BASE_URL}/transcriptions/${jobId}/download`;
+  return `${apiBaseUrl}/transcriptions/${jobId}/download`;
 }

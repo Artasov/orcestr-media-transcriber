@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 3933
     artifacts_dir: Path = Field(default_factory=lambda: repo_root() / "artifacts")
+    ffmpeg_dir: Path | None = Field(default=None, alias="ORCESTR_FFMPEG_DIR")
 
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     openai_transcription_model: str = Field(default="gpt-4o-mini-transcribe")
@@ -41,6 +42,19 @@ class Settings(BaseSettings):
     def normalize_artifacts_dir(cls, value: object) -> object:
         if isinstance(value, str) and value.strip():
             path = Path(value)
+            return path if path.is_absolute() else repo_root() / path
+        if isinstance(value, Path) and not value.is_absolute():
+            return repo_root() / value
+        return value
+
+    @field_validator("ffmpeg_dir", mode="before")
+    @classmethod
+    def normalize_optional_path(cls, value: object) -> object:
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            path = Path(stripped)
             return path if path.is_absolute() else repo_root() / path
         if isinstance(value, Path) and not value.is_absolute():
             return repo_root() / value

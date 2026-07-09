@@ -6,6 +6,7 @@
 # Orcestr Media Transcriber
 
 [![Validate](https://github.com/Artasov/orcestr-media-transcriber/actions/workflows/validate.yml/badge.svg)](https://github.com/Artasov/orcestr-media-transcriber/actions/workflows/validate.yml)
+[![Release desktop apps](https://github.com/Artasov/orcestr-media-transcriber/actions/workflows/release-desktop.yml/badge.svg)](https://github.com/Artasov/orcestr-media-transcriber/actions/workflows/release-desktop.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 Turn local audio and video files into MP3 files and readable transcripts through OpenAI.
@@ -115,6 +116,53 @@ npm run typecheck
 npm run build
 npm audit --audit-level=moderate
 ```
+
+## Desktop releases
+
+Desktop builds are produced by GitHub Actions from tags matching `v*`.
+
+The release workflow builds native artifacts on each target OS:
+
+- Windows x64: NSIS installer `.exe`.
+- macOS x64 and arm64: `.dmg`.
+- Linux x64: `.deb` and `.AppImage`.
+
+The desktop app bundles:
+
+- the production Vite frontend;
+- a PyInstaller backend sidecar;
+- `ffmpeg` and `ffprobe`;
+- a Tauri 2 native shell based on the operating system WebView;
+- third-party notices.
+
+Python, Node.js and FFmpeg are not required on the end user's computer.
+
+Local Windows packaging:
+
+```bash
+npm install
+cd frontend
+npm install
+cd ../backend
+uv sync --extra package
+cd ..
+npm run package:desktop
+```
+
+Local desktop packaging also requires the stable Rust toolchain and the platform prerequisites from the [Tauri documentation](https://v2.tauri.app/start/prerequisites/).
+
+Artifacts are written to `release/`.
+
+To create a release from CI, push a version tag:
+
+```bash
+git tag v0.0.1
+git push origin v0.0.1
+```
+
+Shared PyCharm run configurations `release patch`, `release minor` and `release major` synchronize all frontend, backend and Tauri versions, then create a local release commit and `vX.Y.Z` tag. Push the commit and tag shown by the command to start the desktop release workflow.
+
+macOS builds use an ad-hoc signature. Windows and macOS may still show trust warnings until publisher signing and Apple notarization are configured.
 
 ## Architecture
 

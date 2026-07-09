@@ -6,6 +6,7 @@
 # Orcestr Media Transcriber
 
 [![Validate](https://github.com/Artasov/orcestr-media-transcriber/actions/workflows/validate.yml/badge.svg)](https://github.com/Artasov/orcestr-media-transcriber/actions/workflows/validate.yml)
+[![Release desktop apps](https://github.com/Artasov/orcestr-media-transcriber/actions/workflows/release-desktop.yml/badge.svg)](https://github.com/Artasov/orcestr-media-transcriber/actions/workflows/release-desktop.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 Превращает локальные аудио и видеофайлы в MP3 и читаемые текстовые транскрипты через OpenAI.
@@ -115,6 +116,41 @@ npm run typecheck
 npm run build
 npm audit --audit-level=moderate
 ```
+
+## Desktop-релизы
+
+GitHub Actions автоматически собирает приложения по тегам `v*`:
+
+- Windows x64: установщик `.exe`;
+- macOS x64 и arm64: `.dmg`;
+- Linux x64: `.deb` и `.AppImage`.
+
+Приложение работает через Tauri 2 и включает production frontend, PyInstaller backend, `ffmpeg` и `ffprobe`. Пользователю не нужны Python, Node.js или отдельно установленный FFmpeg.
+
+Локальная сборка:
+
+```bash
+npm install
+cd frontend
+npm install
+cd ../backend
+uv sync --extra package
+cd ..
+npm run package:desktop
+```
+
+Для локальной desktop-сборки также нужен stable Rust и системные зависимости из [документации Tauri](https://v2.tauri.app/start/prerequisites/). Готовые файлы появляются в `release/`.
+
+CI-релиз создаётся после отправки тега:
+
+```bash
+git tag v0.0.1
+git push origin v0.0.1
+```
+
+Общие PyCharm-конфигурации `release patch`, `release minor` и `release major` синхронно обновляют версии frontend, backend и Tauri, затем создают локальный release-коммит и тег `vX.Y.Z`. Чтобы запустить desktop CI, отправь commit и tag командами, которые напечатает release-helper.
+
+На macOS используется ad-hoc подпись. До настройки publisher signing и Apple notarization операционные системы могут показывать предупреждения о доверии.
 
 ## Архитектура
 

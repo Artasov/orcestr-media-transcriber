@@ -30,7 +30,13 @@ job_manager = TranscriptionJobManager(settings, media_service)
 app = FastAPI(title="Orcestr Media Transcriber")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8933", "http://127.0.0.1:8933"],
+    allow_origins=[
+        "http://localhost:8933",
+        "http://127.0.0.1:8933",
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

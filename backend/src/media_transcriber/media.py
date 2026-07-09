@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -22,6 +23,8 @@ SAFE_STEM_RE = re.compile(r"[^A-Za-z0-9._ -]+")
 SAFE_SUFFIX_RE = re.compile(r"[^A-Za-z0-9.]+")
 
 logger = logging.getLogger("media_transcriber.media")
+
+EXECUTABLE_SUFFIX = ".exe" if sys.platform == "win32" else ""
 
 
 class MediaError(Exception):
@@ -144,7 +147,7 @@ class MediaSourceService:
             logger.info("MP3 already exists, skipping conversion: output_path=%s", output_path)
             return
         logger.info("Converting media to MP3: source_path=%s output_path=%s", source_path, output_path)
-        ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
+        ffmpeg = self.tool_path("ffmpeg")
         await self.run_command(
             [
                 ffmpeg,
@@ -164,6 +167,24 @@ class MediaSourceService:
             ]
         )
         logger.info("MP3 conversion completed: output_path=%s", output_path)
+
+    def tool_path(self, tool_name: str) -> str:
+        executable_name = f"{tool_name}{EXECUTABLE_SUFFIX}"
+        candidate_dirs: list[Path] = []
+        if self.settings.ffmpeg_dir is not None:
+            candidate_dirs.append(self.settings.ffmpeg_dir)
+        if getattr(sys, "frozen", False):
+            candidate_dirs.append(Path(sys.executable).resolve().parent)
+            meipass = getattr(sys, "_MEIPASS", None)
+            if meipass:
+                candidate_dirs.append(Path(meipass))
+
+        for directory in candidate_dirs:
+            candidate = directory / executable_name
+            if candidate.exists():
+                return str(candidate)
+
+        return shutil.which(tool_name) or tool_name
 
     def write_sidecar_text(self, source_path: Path, text: str) -> Path:
         sidecar = source_path.with_suffix(".txt")

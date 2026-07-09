@@ -2,16 +2,35 @@ import { Alert, Box, Button, Card, Checkbox, Field, Flex, IconButton, Text, Text
 import type { DragEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { LuFileAudio, LuRefreshCcw, LuX } from 'react-icons/lu';
-import { fetchTranscriptions, jobEventsUrl, uploadTranscriptionFile } from './api/client';
+import {
+  createTranscriptionsFromPaths,
+  fetchTranscriptions,
+  jobEventsUrl,
+  uploadTranscriptionFile,
+} from './api/client';
+import {
+  isDesktopApp,
+  listenForDesktopDrops,
+  selectDesktopMediaFiles,
+  type DesktopMediaFile,
+} from './api/desktop';
 import type { JobEventPayload, TranscriptionJob } from './api/types';
 import { FileDropZone } from './components/FileDropZone';
 import { JobRow } from './components/JobRow';
 
 const OPENAI_API_KEY_STORAGE_KEY = 'orcestr-media-transcriber.openaiApiKey';
 
+interface PendingMediaFile {
+  id: string;
+  name: string;
+  size: number;
+  path?: string;
+  file?: File;
+}
+
 export function App() {
   const [jobs, setJobs] = useState<TranscriptionJob[]>([]);
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<PendingMediaFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [generateMp3, setGenerateMp3] = useState(true);
   const [generateTxt, setGenerateTxt] = useState(true);
@@ -79,6 +98,31 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (!isDesktopApp()) return;
+    let disposed = false;
+    let stopListening: (() => void) | undefined;
+    void listenForDesktopDrops({
+      onEnter: () => setDragging(true),
+      onLeave: () => {
+        dragDepth.current = 0;
+        setDragging(false);
+      },
+      onDrop: (files) => addDesktopFiles(files),
+      onError: (dropError) => setError(errorMessage(dropError)),
+    }).then((unlisten) => {
+      if (disposed) {
+        unlisten();
+        return;
+      }
+      stopListening = unlisten;
+    });
+    return () => {
+      disposed = true;
+      stopListening?.();
+    };
+  }, []);
+
+  useEffect(() => {
     try {
       const apiKey = openaiApiKey.trim();
       if (apiKey) {
@@ -91,10 +135,42 @@ export function App() {
     }
   }, [openaiApiKey]);
 
-  const addFiles = (files: File[]) => {
+  const addBrowserFiles = (files: File[]) => {
     if (files.length === 0) return;
     setError(null);
-    setPendingFiles((current) => [...current, ...files]);
+    setPendingFiles((current) => [
+      ...current,
+      ...files.map((file) => ({
+        id: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
+        name: file.name,
+        size: file.size,
+        file,
+      })),
+    ]);
+  };
+
+  const addDesktopFiles = (files: DesktopMediaFile[]) => {
+    if (files.length === 0) return;
+    setError(null);
+    setPendingFiles((current) => [
+      ...current,
+      ...files.map((file) => ({
+        id: `${file.path}-${crypto.randomUUID()}`,
+        ...file,
+      })),
+    ]);
+  };
+
+  const selectFiles = async () => {
+    if (!isDesktopApp()) {
+      inputRef.current?.click();
+      return;
+    }
+    try {
+      addDesktopFiles(await selectDesktopMediaFiles());
+    } catch (selectError) {
+      setError(errorMessage(selectError));
+    }
   };
 
   const removePendingFile = (index: number) => {
@@ -119,9 +195,18 @@ export function App() {
       generate_txt: generateTxt,
       openai_api_key: openaiApiKey,
     };
-    const results = await Promise.allSettled(files.map((file) => uploadTranscriptionFile(file, options)));
+    const results = await Promise.allSettled(
+      files.map(async (pendingFile) => {
+        if (pendingFile.path) {
+          const [job] = await createTranscriptionsFromPaths([pendingFile.path], options);
+          return job;
+        }
+        if (pendingFile.file) return uploadTranscriptionFile(pendingFile.file, options);
+        throw new Error(`File data is missing: ${pendingFile.name}`);
+      }),
+    );
     const failures: string[] = [];
-    const failedFiles: File[] = [];
+    const failedFiles: PendingMediaFile[] = [];
     results.forEach((result, index) => {
       if (result.status === 'fulfilled') {
         const job = result.value;
@@ -138,7 +223,7 @@ export function App() {
   };
 
   const submitFileInput = (fileList: FileList | null) => {
-    addFiles(Array.from(fileList ?? []));
+    addBrowserFiles(Array.from(fileList ?? []));
     if (inputRef.current) inputRef.current.value = '';
   };
 
@@ -171,7 +256,7 @@ export function App() {
     event.preventDefault();
     dragDepth.current = 0;
     setDragging(false);
-    addFiles(Array.from(event.dataTransfer.files));
+    addBrowserFiles(Array.from(event.dataTransfer.files));
   };
 
   return (
@@ -225,13 +310,13 @@ export function App() {
         />
       </Field>
 
-      {!hasFiles && <FileDropZone busy={uploading} onFiles={addFiles} />}
+      {!hasFiles && <FileDropZone busy={uploading} onSelect={() => void selectFiles()} onFiles={addBrowserFiles} />}
 
       {hasPendingFiles && (
         <Card className={`work-panel${dragging ? ' is-dragging' : ''}`} v="surface" size={3}>
           <Box className="pending-files">
             {pendingFiles.map((file, index) => (
-              <Card className="pending-file" key={`${file.name}-${file.size}-${index}`} v="soft" size={2}>
+              <Card className="pending-file" key={file.id} v="soft" size={2}>
                 <LuFileAudio size={18} />
                 <Box className="pending-file-copy">
                   <Text as="strong" truncate>
@@ -254,7 +339,7 @@ export function App() {
           </Box>
 
           <Flex className="run-controls" a="center" wrap g={2}>
-            <Button type="button" v="surface" disabled={uploading} onClick={() => inputRef.current?.click()}>
+            <Button type="button" v="surface" disabled={uploading} onClick={() => void selectFiles()}>
               Add files
             </Button>
             <Flex className="output-toggles" role="group" aria-label="Output formats" a="center" g={2}>
@@ -270,7 +355,7 @@ export function App() {
 
       {hasJobs && !hasPendingFiles && (
         <Flex className="jobs-toolbar">
-          <Button type="button" v="surface" disabled={uploading} onClick={() => inputRef.current?.click()}>
+          <Button type="button" v="surface" disabled={uploading} onClick={() => void selectFiles()}>
             Add files
           </Button>
         </Flex>

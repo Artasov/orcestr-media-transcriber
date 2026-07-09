@@ -101,6 +101,8 @@ textarea {
 }
 
 .pending-file-copy {
+  display: grid;
+  gap: 3px;
   min-width: 0;
 }
 

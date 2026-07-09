@@ -21,6 +21,9 @@ dev = [
     "ruff>=0.7.0",
     "mypy>=1.13.0",
 ]
+package = [
+    "pyinstaller>=6.15.0",
+]
 
 [build-system]
 requires = ["hatchling"]

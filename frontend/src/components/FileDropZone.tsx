@@ -1,14 +1,14 @@
 import { Card, Flex, Text } from '@orcestr/ui';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { LuUpload } from 'react-icons/lu';
 
 interface FileDropZoneProps {
   busy: boolean;
+  onSelect: () => void;
   onFiles: (files: File[]) => void;
 }
 
-export function FileDropZone({ busy, onFiles }: FileDropZoneProps) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
+export function FileDropZone({ busy, onSelect, onFiles }: FileDropZoneProps) {
   const [dragging, setDragging] = useState(false);
 
   const submitFiles = (fileList: FileList | null) => {
@@ -23,7 +23,7 @@ export function FileDropZone({ busy, onFiles }: FileDropZoneProps) {
       size={4}
       interactive={!busy}
       onClick={() => {
-        if (!busy) inputRef.current?.click();
+        if (!busy) onSelect();
       }}
       onDragEnter={(event) => {
         event.preventDefault();
@@ -37,16 +37,6 @@ export function FileDropZone({ busy, onFiles }: FileDropZoneProps) {
         submitFiles(event.dataTransfer.files);
       }}
     >
-      <input
-        ref={inputRef}
-        type="file"
-        multiple
-        accept="audio/*,video/*,.mkv,.m4v,.mov,.webm"
-        onChange={(event) => {
-          submitFiles(event.currentTarget.files);
-          event.currentTarget.value = '';
-        }}
-      />
       <Flex className="drop-zone-content" a="center" j="center" g={4}>
         <Flex className="drop-icon" a="center" j="center" aria-hidden="true">
           <LuUpload size={20} />
