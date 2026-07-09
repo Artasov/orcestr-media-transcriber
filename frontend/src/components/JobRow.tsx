@@ -1,4 +1,5 @@
-import { CheckCircle2, Clipboard, Download, FileAudio, FileVideo, Loader2, XCircle } from 'lucide-react';
+import { Badge, Box, Button, Card, Flex, LinkButton, Text, TextArea } from '@orcestr/ui';
+import { LuCircleCheckBig, LuCircleX, LuClipboard, LuDownload, LuFileAudio, LuFileVideo, LuLoaderCircle } from 'react-icons/lu';
 import { transcriptDownloadUrl } from '../api/client';
 import type { TranscriptionJob } from '../api/types';
 
@@ -17,86 +18,99 @@ export function JobRow({ job }: JobRowProps) {
   };
 
   return (
-    <article className={`job-row status-${job.status}`}>
-      <div className="job-main">
-        <div className="job-icon" aria-hidden="true">
-          {job.source_kind === 'video' ? <FileVideo size={20} /> : <FileAudio size={20} />}
-        </div>
-        <div className="job-content">
-          <div className="job-heading">
-            <h2>{job.name}</h2>
+    <Card className={`job-row status-${job.status}`} v="surface" size={3}>
+      <Flex className="job-main" g={3}>
+        <Flex className="job-icon" a="center" j="center" aria-hidden="true">
+          {job.source_kind === 'video' ? <LuFileVideo size={20} /> : <LuFileAudio size={20} />}
+        </Flex>
+        <Box className="job-content">
+          <Flex className="job-heading" a="start" j="sb" g={3}>
+            <Text as="h2" fs="16px" fw={760} lh="1.3">
+              {job.name}
+            </Text>
             <StatusBadge job={job} />
-          </div>
-          <div className="job-meta">
-            <span>{formatFileSize(job.size)}</span>
-            <span>{job.source_kind}</span>
-            <span>
+          </Flex>
+          <Flex className="job-meta" wrap g={2}>
+            <Text tone="muted" fs="12px">
+              {formatFileSize(job.size)}
+            </Text>
+            <Text tone="muted" fs="12px">
+              {job.source_kind}
+            </Text>
+            <Text tone="muted" fs="12px">
               {job.generate_mp3 ? 'MP3' : ''}
               {job.generate_mp3 && job.generate_txt ? ' + ' : ''}
               {job.generate_txt ? 'TXT' : ''}
-            </span>
+            </Text>
             {job.chunks_count > 0 && (
-              <span>
+              <Text tone="muted" fs="12px">
                 {job.chunks_completed}/{job.chunks_count} chunks
-              </span>
+              </Text>
             )}
-          </div>
+          </Flex>
           {!done && !failed && (
-            <div className="progress-track" aria-label="Processing progress">
-              <div className="progress-bar" style={{ width: progress === null ? '35%' : `${progress}%` }} />
-            </div>
+            <Box className="progress-track" aria-label="Processing progress">
+              <Box className="progress-bar" style={{ width: progress === null ? '35%' : `${progress}%` }} />
+            </Box>
           )}
-          {failed && <p className="job-error">{job.error ?? 'Transcription failed'}</p>}
-        </div>
-      </div>
+          {failed && (
+            <Text as="p" tone="danger" className="job-error">
+              {job.error ?? 'Transcription failed'}
+            </Text>
+          )}
+        </Box>
+      </Flex>
 
       {done && (
-        <div className="result-panel">
-          <div className="output-paths">
-            {job.audio_path && <span>MP3: {job.audio_path}</span>}
-            {job.transcript_path && <span>TXT: {job.transcript_path}</span>}
-          </div>
-          {job.transcript && <textarea value={job.transcript} readOnly />}
-          <div className="result-actions">
-            <button type="button" onClick={copyText} disabled={!job.transcript} title="Copy text">
-              <Clipboard size={16} />
-              <span>Copy</span>
-            </button>
-            {job.transcript_path && (
-              <a href={transcriptDownloadUrl(job.id)} title="Download transcript">
-                <Download size={16} />
-                <span>Download TXT</span>
-              </a>
+        <Box className="result-panel">
+          <Box className="output-paths">
+            {job.audio_path && (
+              <Text tone="muted" fs="12px">
+                MP3: {job.audio_path}
+              </Text>
             )}
-          </div>
-        </div>
+            {job.transcript_path && (
+              <Text tone="muted" fs="12px">
+                TXT: {job.transcript_path}
+              </Text>
+            )}
+          </Box>
+          {job.transcript && <TextArea value={job.transcript} readOnly className="transcript-area" />}
+          <Flex className="result-actions" wrap g={2}>
+            <Button type="button" v="surface" onClick={copyText} disabled={!job.transcript} leftIcon={<LuClipboard size={16} />}>
+              Copy
+            </Button>
+            {job.transcript_path && (
+              <LinkButton href={transcriptDownloadUrl(job.id)} v="surface" leftIcon={<LuDownload size={16} />}>
+                Download TXT
+              </LinkButton>
+            )}
+          </Flex>
+        </Box>
       )}
-    </article>
+    </Card>
   );
 }
 
 function StatusBadge({ job }: { job: TranscriptionJob }) {
   if (job.status === 'completed') {
     return (
-      <span className="status-badge ok">
-        <CheckCircle2 size={14} />
+      <Badge tone="success" icon={<LuCircleCheckBig size={14} />} v="surface">
         Done
-      </span>
+      </Badge>
     );
   }
   if (job.status === 'failed') {
     return (
-      <span className="status-badge fail">
-        <XCircle size={14} />
+      <Badge tone="danger" icon={<LuCircleX size={14} />} v="surface">
         Failed
-      </span>
+      </Badge>
     );
   }
   return (
-    <span className="status-badge active">
-      <Loader2 size={14} />
+    <Badge tone="primary" icon={<LuLoaderCircle className="spin-icon" size={14} />} v="surface">
       {job.status === 'queued' ? 'Queued' : job.generate_txt ? 'Transcribing' : 'Processing'}
-    </span>
+    </Badge>
   );
 }
 

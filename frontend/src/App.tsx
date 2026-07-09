@@ -1,6 +1,7 @@
-import { AlertCircle, FileAudio, RefreshCcw, Trash2, X } from 'lucide-react';
+import { Alert, Box, Button, Card, Checkbox, Field, Flex, IconButton, Text, TextField } from '@orcestr/ui';
 import type { DragEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { LuFileAudio, LuRefreshCcw, LuX } from 'react-icons/lu';
 import { fetchTranscriptions, jobEventsUrl, uploadTranscriptionFile } from './api/client';
 import type { JobEventPayload, TranscriptionJob } from './api/types';
 import { FileDropZone } from './components/FileDropZone';
@@ -189,117 +190,104 @@ export function App() {
         accept="audio/*,video/*,.mkv,.m4v,.mov,.webm"
         onChange={(event) => submitFileInput(event.currentTarget.files)}
       />
-      <header className="app-header">
-        <div>
-          <p className="eyebrow">OpenAI transcription</p>
-          <h1>Media Transcriber</h1>
-        </div>
-        <button type="button" className="icon-button" onClick={loadJobs} title="Refresh">
-          <RefreshCcw size={17} />
-        </button>
-      </header>
+      <Flex as="header" className="app-header" a="center" j="sb" g={4}>
+        <Box>
+          <Text as="p" tone="primary" fs="13px" fw={750} className="eyebrow">
+            OpenAI transcription
+          </Text>
+          <Text as="h1" fs="32px" fw={780} lh="1.12">
+            Media Transcriber
+          </Text>
+        </Box>
+        <IconButton
+          aria-label="Refresh"
+          title="Refresh"
+          icon={<LuRefreshCcw size={17} />}
+          onClick={loadJobs}
+          size={4}
+          v="surface"
+        />
+      </Flex>
 
-      <section className="token-panel">
-        <label htmlFor="openai-api-key">OpenAI token</label>
-        <input
+      <Field label="OpenAI token" htmlFor="openai-api-key" className="token-field">
+        <TextField
           id="openai-api-key"
           type="password"
           value={openaiApiKey}
           placeholder="sk-..."
           autoComplete="off"
           spellCheck={false}
+          clearable
+          clearLabel="Clear saved token"
+          onClear={() => setOpenaiApiKey('')}
           onChange={(event) => setOpenaiApiKey(event.currentTarget.value)}
+          fullWidth
         />
-        <button
-          type="button"
-          className="icon-button token-clear"
-          disabled={!openaiApiKey}
-          onClick={() => setOpenaiApiKey('')}
-          title="Clear saved token"
-        >
-          <Trash2 size={14} />
-        </button>
-      </section>
+      </Field>
 
       {!hasFiles && <FileDropZone busy={uploading} onFiles={addFiles} />}
 
       {hasPendingFiles && (
-        <section className={`work-panel${dragging ? ' is-dragging' : ''}`}>
-          <div className="pending-files">
+        <Card className={`work-panel${dragging ? ' is-dragging' : ''}`} v="surface" size={3}>
+          <Box className="pending-files">
             {pendingFiles.map((file, index) => (
-              <div className="pending-file" key={`${file.name}-${file.size}-${index}`}>
-                <FileAudio size={17} />
-                <div>
-                  <strong>{file.name}</strong>
-                  <span>{formatFileSize(file.size)}</span>
-                </div>
-                <button type="button" onClick={() => removePendingFile(index)} title="Remove file">
-                  <X size={15} />
-                </button>
-              </div>
+              <Card className="pending-file" key={`${file.name}-${file.size}-${index}`} v="soft" size={2}>
+                <LuFileAudio size={18} />
+                <Box className="pending-file-copy">
+                  <Text as="strong" truncate>
+                    {file.name}
+                  </Text>
+                  <Text tone="muted" fs="12px" truncate>
+                    {formatFileSize(file.size)}
+                  </Text>
+                </Box>
+                <IconButton
+                  aria-label="Remove file"
+                  title="Remove file"
+                  icon={<LuX size={15} />}
+                  onClick={() => removePendingFile(index)}
+                  size={2}
+                  v="ghost"
+                />
+              </Card>
             ))}
-          </div>
+          </Box>
 
-          <div className="run-controls">
-            <button
-              type="button"
-              className="secondary-action"
-              disabled={uploading}
-              onClick={() => inputRef.current?.click()}
-            >
+          <Flex className="run-controls" a="center" wrap g={2}>
+            <Button type="button" v="surface" disabled={uploading} onClick={() => inputRef.current?.click()}>
               Add files
-            </button>
-            <div className="output-toggles" aria-label="Output formats">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={generateMp3}
-                  onChange={(event) => setGenerateMp3(event.currentTarget.checked)}
-                />
-                <span>MP3</span>
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={generateTxt}
-                  onChange={(event) => setGenerateTxt(event.currentTarget.checked)}
-                />
-                <span>TXT</span>
-              </label>
-            </div>
-            <button type="button" className="primary-action" disabled={!canStart} onClick={() => void startPendingFiles()}>
+            </Button>
+            <Flex className="output-toggles" role="group" aria-label="Output formats" a="center" g={2}>
+              <Checkbox label="MP3" checked={generateMp3} onCheckedChange={setGenerateMp3} />
+              <Checkbox label="TXT" checked={generateTxt} onCheckedChange={setGenerateTxt} />
+            </Flex>
+            <Button type="button" disabled={!canStart} loading={uploading} onClick={() => void startPendingFiles()}>
               {uploading ? 'Uploading' : 'Start'}
-            </button>
-          </div>
-        </section>
+            </Button>
+          </Flex>
+        </Card>
       )}
 
       {hasJobs && !hasPendingFiles && (
-        <div className="jobs-toolbar">
-          <button
-            type="button"
-            className="secondary-action"
-            disabled={uploading}
-            onClick={() => inputRef.current?.click()}
-          >
+        <Flex className="jobs-toolbar">
+          <Button type="button" v="surface" disabled={uploading} onClick={() => inputRef.current?.click()}>
             Add files
-          </button>
-        </div>
+          </Button>
+        </Flex>
       )}
 
       {error && (
-        <div className="error-banner">
-          <AlertCircle size={17} />
-          <span>{error}</span>
-        </div>
+        <Alert tone="danger" className="error-banner">
+          {error}
+        </Alert>
       )}
 
       {hasJobs && (
-        <section className="jobs-list">
+        <Box as="section" className="jobs-list">
           {jobs.map((job) => (
             <JobRow key={job.id} job={job} />
           ))}
-        </section>
+        </Box>
       )}
     </main>
   );

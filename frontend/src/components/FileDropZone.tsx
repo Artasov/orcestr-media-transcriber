@@ -1,5 +1,6 @@
-import { UploadCloud } from 'lucide-react';
+import { Card, Flex, Text } from '@orcestr/ui';
 import { useRef, useState } from 'react';
+import { LuUpload } from 'react-icons/lu';
 
 interface FileDropZoneProps {
   busy: boolean;
@@ -16,8 +17,11 @@ export function FileDropZone({ busy, onFiles }: FileDropZoneProps) {
   };
 
   return (
-    <section
+    <Card
       className={`drop-zone${dragging ? ' is-dragging' : ''}`}
+      v="surface"
+      size={4}
+      interactive={!busy}
       onClick={() => {
         if (!busy) inputRef.current?.click();
       }}
@@ -43,13 +47,19 @@ export function FileDropZone({ busy, onFiles }: FileDropZoneProps) {
           event.currentTarget.value = '';
         }}
       />
-      <div className="drop-icon" aria-hidden="true">
-        <UploadCloud size={18} />
-      </div>
-      <div className="drop-copy">
-        <strong>{busy ? 'Uploading' : 'Drop files here'}</strong>
-        <span>Click to select several audio or video files</span>
-      </div>
-    </section>
+      <Flex className="drop-zone-content" a="center" j="center" g={4}>
+        <Flex className="drop-icon" a="center" j="center" aria-hidden="true">
+          <LuUpload size={20} />
+        </Flex>
+        <Flex col g={1} className="drop-copy">
+          <Text as="strong" fs="17px" fw={760}>
+            {busy ? 'Uploading' : 'Drop files here'}
+          </Text>
+          <Text tone="muted" fs="13px">
+            Click to select several audio or video files
+          </Text>
+        </Flex>
+      </Flex>
+    </Card>
   );
 }
