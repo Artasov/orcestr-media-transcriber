@@ -79,13 +79,6 @@ jobs:
       - name: Build Tauri desktop package
         run: npm run package:desktop
 
-      - name: Upload workflow artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: orcestr-media-transcriber-${{ matrix.name }}
-          path: release/*
-          if-no-files-found: error
-
       - name: Upload installers to S3
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
@@ -132,14 +125,11 @@ jobs:
             --recursive \
             --endpoint-url "${S3_ENDPOINT}" \
             --acl public-read
-
-      - name: Upload S3 manifest artifact
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@v6
-        with:
-          name: release-manifest-${{ matrix.name }}
-          path: release-manifest/*.json
-          if-no-files-found: error
+          aws s3 cp "release-manifest/${TARGET}.json" \
+            "s3://${S3_BUCKET}/${S3_PRODUCT_PATH}/${VERSION}/manifests/${TARGET}.json" \
+            --endpoint-url "${S3_ENDPOINT}" \
+            --acl public-read \
+            --content-type application/json
 
   release:
     name: Publish release
@@ -151,19 +141,22 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
 
     steps:
-      - name: Download installers
-        uses: actions/download-artifact@v7
-        with:
-          pattern: orcestr-media-transcriber-*
-          path: release
-          merge-multiple: true
-
       - name: Download S3 manifests
-        uses: actions/download-artifact@v7
-        with:
-          pattern: release-manifest-*
-          path: release-manifest
-          merge-multiple: true
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if ! command -v aws >/dev/null 2>&1; then
+            python3 -m pip install --user awscli
+            export PATH="$(python3 -c 'import site; print(site.USER_BASE)')/bin:${PATH}"
+          fi
+
+          aws configure set default.s3.addressing_style path
+          mkdir -p release-manifest
+          aws s3 cp "s3://${S3_BUCKET}/${S3_PRODUCT_PATH}/${VERSION}/manifests/" release-manifest/ \
+            --recursive \
+            --endpoint-url "${S3_ENDPOINT}"
 
       - name: Publish S3 release manifest
         env:
@@ -171,7 +164,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          python - <<'PY'
+          python3 - <<'PY'
           import glob
           import json
           import os
@@ -191,12 +184,25 @@ jobs:
           with open("latest.json", "w", encoding="utf-8") as handle:
               json.dump({"version": version, "targets": targets}, handle, indent=2)
               handle.write("\n")
-          PY
 
-          if ! command -v aws >/dev/null 2>&1; then
-            python -m pip install --user awscli
-            export PATH="$(python -c 'import site; print(site.USER_BASE)')/bin:${PATH}"
-          fi
+          target_titles = {
+              "windows-x64": "Windows x64",
+              "macos-x64": "macOS Intel",
+              "macos-arm64": "macOS Apple Silicon",
+              "linux-x64": "Linux x64",
+          }
+          body = ["## Downloads", ""]
+          for target in ("windows-x64", "macos-x64", "macos-arm64", "linux-x64"):
+              body.extend((f"### {target_titles[target]}", ""))
+              for item in targets[target]:
+                  body.append(
+                      f"- [{item['name']}]({item['url']}) - SHA-256: `{item['sha256']}`"
+                  )
+              body.append("")
+
+          with open("release-body.md", "w", encoding="utf-8") as handle:
+              handle.write("\n".join(body))
+          PY
 
           aws configure set default.s3.addressing_style path
           aws s3 cp latest.json "s3://${S3_BUCKET}/${S3_PRODUCT_PATH}/latest.json" \
@@ -208,8 +214,23 @@ jobs:
             --acl public-read \
             --content-type application/json
 
+      - name: Add generated release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          printf '\n---\n\n## Changes\n\n' >> release-body.md
+          gh api "repos/${{ github.repository }}/releases/generate-notes" \
+            -F tag_name="${VERSION}" \
+            -F target_commitish="${{ github.sha }}" \
+            --jq '.body' >> release-body.md
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release/*
-          generate_release_notes: true
+          body_path: release-body.md
+          draft: false
+          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
