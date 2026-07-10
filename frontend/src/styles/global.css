@@ -38,8 +38,13 @@ textarea {
 }
 
 .token-field {
-  width: min(100%, 460px);
+  width: min(100%, 620px);
   margin-bottom: 14px;
+}
+
+.token-field-control > :first-child {
+  min-width: 0;
+  flex: 1;
 }
 
 .drop-zone {
@@ -223,8 +228,14 @@ textarea {
   }
 
   .drop-zone-content,
-  .run-controls {
+  .run-controls,
+  .token-field-control {
     width: 100%;
+  }
+
+  .token-field-control {
+    align-items: stretch !important;
+    flex-direction: column;
   }
 
   .output-toggles {

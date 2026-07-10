@@ -1,7 +1,7 @@
 import { Alert, Box, Button, Card, Checkbox, Field, Flex, IconButton, Text, TextField } from '@orcestr/ui';
 import type { DragEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { LuFileAudio, LuRefreshCcw, LuX } from 'react-icons/lu';
+import { LuFileAudio, LuRefreshCcw, LuTrash2, LuX } from 'react-icons/lu';
 import {
   createTranscriptionsFromPaths,
   fetchTranscriptions,
@@ -45,6 +45,16 @@ export function App() {
   const hasJobs = jobs.length > 0;
   const hasFiles = hasPendingFiles || hasJobs;
   const canStart = hasPendingFiles && !uploading;
+
+  const updateOpenaiApiKey = (value: string) => {
+    setOpenaiApiKey(value);
+    saveOpenaiApiKey(value);
+  };
+
+  const resetOpenaiApiKey = () => {
+    setOpenaiApiKey('');
+    clearOpenaiApiKey();
+  };
 
   const mergeJob = (job: TranscriptionJob) => {
     setJobs((current) => {
@@ -121,19 +131,6 @@ export function App() {
       stopListening?.();
     };
   }, []);
-
-  useEffect(() => {
-    try {
-      const apiKey = openaiApiKey.trim();
-      if (apiKey) {
-        localStorage.setItem(OPENAI_API_KEY_STORAGE_KEY, apiKey);
-        return;
-      }
-      localStorage.removeItem(OPENAI_API_KEY_STORAGE_KEY);
-    } catch {
-      return;
-    }
-  }, [openaiApiKey]);
 
   const addBrowserFiles = (files: File[]) => {
     if (files.length === 0) return;
@@ -295,19 +292,22 @@ export function App() {
       </Flex>
 
       <Field label="OpenAI token" htmlFor="openai-api-key" className="token-field">
-        <TextField
-          id="openai-api-key"
-          type="password"
-          value={openaiApiKey}
-          placeholder="sk-..."
-          autoComplete="off"
-          spellCheck={false}
-          clearable
-          clearLabel="Clear saved token"
-          onClear={() => setOpenaiApiKey('')}
-          onChange={(event) => setOpenaiApiKey(event.currentTarget.value)}
-          fullWidth
-        />
+        <Flex className="token-field-control" a="center" g={2}>
+          <TextField
+            id="openai-api-key"
+            type="password"
+            value={openaiApiKey}
+            placeholder="sk-..."
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(event) => updateOpenaiApiKey(event.currentTarget.value)}
+            fullWidth
+          />
+          <Button type="button" v="surface" disabled={!openaiApiKey.trim()} onClick={resetOpenaiApiKey}>
+            <LuTrash2 size={15} />
+            Reset
+          </Button>
+        </Flex>
       </Field>
 
       {!hasFiles && <FileDropZone busy={uploading} onSelect={() => void selectFiles()} onFiles={addBrowserFiles} />}
@@ -399,5 +399,26 @@ function storedOpenaiApiKey(): string {
     return localStorage.getItem(OPENAI_API_KEY_STORAGE_KEY) ?? '';
   } catch {
     return '';
+  }
+}
+
+function saveOpenaiApiKey(value: string): void {
+  const apiKey = value.trim();
+  if (!apiKey) {
+    clearOpenaiApiKey();
+    return;
+  }
+  try {
+    localStorage.setItem(OPENAI_API_KEY_STORAGE_KEY, apiKey);
+  } catch {
+    return;
+  }
+}
+
+function clearOpenaiApiKey(): void {
+  try {
+    localStorage.removeItem(OPENAI_API_KEY_STORAGE_KEY);
+  } catch {
+    return;
   }
 }

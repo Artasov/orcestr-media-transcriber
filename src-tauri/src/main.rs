@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
@@ -177,7 +179,8 @@ fn start_backend(app: &AppHandle, port: u16, watch_port: u16) -> Result<(), Stri
 
 fn backend_is_healthy(port: u16) -> bool {
     let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
-    let Ok(mut stream) = TcpStream::connect_timeout(&address.into(), Duration::from_millis(300)) else {
+    let Ok(mut stream) = TcpStream::connect_timeout(&address.into(), Duration::from_millis(300))
+    else {
         return false;
     };
     let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
@@ -264,7 +267,8 @@ fn main() {
 
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                let result = tauri::async_runtime::spawn_blocking(move || wait_for_backend(port)).await;
+                let result =
+                    tauri::async_runtime::spawn_blocking(move || wait_for_backend(port)).await;
                 match result {
                     Ok(Ok(())) => {
                         if let Err(error) = create_main_window(&app_handle) {
@@ -283,12 +287,10 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("failed to build Orcestr Media Transcriber");
 
-    app.run(|app_handle, event| {
-        match event {
-            tauri::RunEvent::ExitRequested { .. } => {
-                app_handle.state::<BackendProcess>().stop();
-            }
-            _ => {}
+    app.run(|app_handle, event| match event {
+        tauri::RunEvent::ExitRequested { .. } => {
+            app_handle.state::<BackendProcess>().stop();
         }
+        _ => {}
     });
 }
