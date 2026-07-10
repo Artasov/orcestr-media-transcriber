@@ -22,13 +22,22 @@ def backend_binary_name() -> str:
     return f"orcestr-media-backend{suffix}"
 
 
+def remove_path(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    elif path.exists() or path.is_symlink():
+        path.unlink()
+
+
 def main() -> None:
     DIST_DIR.mkdir(parents=True, exist_ok=True)
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
 
     binary_path = DIST_DIR / backend_binary_name()
-    if binary_path.exists():
-        binary_path.unlink()
+    bundled_dir = DIST_DIR / "orcestr-media-backend"
+    remove_path(binary_path)
+    if bundled_dir != binary_path:
+        remove_path(bundled_dir)
 
     command = [
         sys.executable,
@@ -66,11 +75,7 @@ def main() -> None:
     if spec_file.exists():
         spec_file.unlink()
 
-    bundled_dir = DIST_DIR / "orcestr-media-backend"
-    if bundled_dir.exists():
-        shutil.rmtree(bundled_dir)
-
-    if not binary_path.exists():
+    if not binary_path.is_file():
         raise SystemExit(f"Backend binary was not created: {binary_path}")
 
 

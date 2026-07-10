@@ -127,6 +127,11 @@ The release workflow builds native artifacts on each target OS:
 - macOS x64 and arm64: `.dmg`.
 - Linux x64: `.deb` and `.AppImage`.
 
+Every successful tagged build publishes installers to both GitHub Releases and the public S3 prefix
+`orcestr-media-transcriber/<tag>/<target>/`. The workflow also updates
+`orcestr-media-transcriber/latest.json` with download URLs and SHA-256 checksums for all targets.
+The repository must provide `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` Actions secrets.
+
 The desktop app bundles:
 
 - the production Vite frontend;

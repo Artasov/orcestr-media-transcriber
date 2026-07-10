@@ -9,6 +9,13 @@ on:
 permissions:
   contents: write
 
+env:
+  AWS_DEFAULT_REGION: ru-1
+  AWS_S3_FORCE_PATH_STYLE: true
+  S3_BUCKET: 324718a4-2cc5dd7a-917b-4e82-87c5-b9d5f8de16ba
+  S3_ENDPOINT: https://s3.twcstorage.ru
+  S3_PRODUCT_PATH: orcestr-media-transcriber
+
 jobs:
   build:
     name: Build ${{ matrix.name }}
@@ -25,6 +32,9 @@ jobs:
             os: macos-15-intel
           - name: macos-arm64
             os: macos-15
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
 
     steps:
       - uses: actions/checkout@v6
@@ -70,14 +80,136 @@ jobs:
         run: npm run package:desktop
 
       - name: Upload workflow artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: orcestr-media-transcriber-${{ matrix.name }}
           path: release/*
           if-no-files-found: error
 
-      - name: Publish GitHub Release
+      - name: Upload installers to S3
         if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          VERSION: ${{ github.ref_name }}
+          TARGET: ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+
+          if ! command -v aws >/dev/null 2>&1; then
+            python -m pip install --user awscli
+            if [ "${RUNNER_OS}" = "Windows" ]; then
+              export PATH="$(python -c 'import site; print(site.USER_BASE)')/Scripts:${PATH}"
+            else
+              export PATH="$(python -c 'import site; print(site.USER_BASE)')/bin:${PATH}"
+            fi
+          fi
+
+          aws configure set default.s3.addressing_style path
+          mkdir -p release-manifest
+
+          python - "${TARGET}" "${VERSION}" "${S3_ENDPOINT}" "${S3_BUCKET}" "${S3_PRODUCT_PATH}" > "release-manifest/${TARGET}.json" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          target, version, endpoint, bucket, product_path = sys.argv[1:6]
+          artifacts = []
+          for path in sorted(Path("release").iterdir()):
+              if not path.is_file():
+                  continue
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              url = f"{endpoint}/{bucket}/{product_path}/{version}/{target}/{path.name}"
+              artifacts.append({"name": path.name, "url": url, "sha256": digest})
+
+          if not artifacts:
+              raise SystemExit("No release artifacts were found for the S3 manifest.")
+
+          print(json.dumps({"target": target, "files": artifacts}, indent=2))
+          PY
+
+          aws s3 cp release/ "s3://${S3_BUCKET}/${S3_PRODUCT_PATH}/${VERSION}/${TARGET}/" \
+            --recursive \
+            --endpoint-url "${S3_ENDPOINT}" \
+            --acl public-read
+
+      - name: Upload S3 manifest artifact
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-manifest-${{ matrix.name }}
+          path: release-manifest/*.json
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+
+    steps:
+      - name: Download installers
+        uses: actions/download-artifact@v7
+        with:
+          pattern: orcestr-media-transcriber-*
+          path: release
+          merge-multiple: true
+
+      - name: Download S3 manifests
+        uses: actions/download-artifact@v7
+        with:
+          pattern: release-manifest-*
+          path: release-manifest
+          merge-multiple: true
+
+      - name: Publish S3 release manifest
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          import glob
+          import json
+          import os
+
+          targets = {}
+          for path in glob.glob("release-manifest/*.json"):
+              with open(path, encoding="utf-8") as handle:
+                  item = json.load(handle)
+              targets[item["target"]] = item["files"]
+
+          required = {"windows-x64", "linux-x64", "macos-x64", "macos-arm64"}
+          missing = sorted(required - set(targets))
+          if missing:
+              raise SystemExit(f"Missing S3 release manifests: {', '.join(missing)}")
+
+          version = os.environ["VERSION"].removeprefix("v")
+          with open("latest.json", "w", encoding="utf-8") as handle:
+              json.dump({"version": version, "targets": targets}, handle, indent=2)
+              handle.write("\n")
+          PY
+
+          if ! command -v aws >/dev/null 2>&1; then
+            python -m pip install --user awscli
+            export PATH="$(python -c 'import site; print(site.USER_BASE)')/bin:${PATH}"
+          fi
+
+          aws configure set default.s3.addressing_style path
+          aws s3 cp latest.json "s3://${S3_BUCKET}/${S3_PRODUCT_PATH}/latest.json" \
+            --endpoint-url "${S3_ENDPOINT}" \
+            --acl public-read \
+            --content-type application/json
+          aws s3 cp latest.json "s3://${S3_BUCKET}/${S3_PRODUCT_PATH}/${VERSION}/latest.json" \
+            --endpoint-url "${S3_ENDPOINT}" \
+            --acl public-read \
+            --content-type application/json
+
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: release/*
+          generate_release_notes: true
