@@ -1,6 +1,6 @@
 [project]
 name = "orcestr-media-transcriber"
-version = "0.1.0"
+version = "0.1.1"
 description = "Small local web app for batch audio/video transcription through OpenAI."
 requires-python = ">=3.12,<3.13"
 readme = "../README.md"
