@@ -1,7 +1,12 @@
 <p align="right">
   <strong>English</strong> · <a href="./README.ru.md">Русский</a>
 </p>
-<br/>
+
+<p align="center">
+  <a href="https://orcestr.com/media-transcriber">
+    <img src="./assets/media-transcriber-banner.png" alt="Orcestr Media Transcriber banner" width="100%" />
+  </a>
+</p>
 
 # Orcestr Media Transcriber
 
