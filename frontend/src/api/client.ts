@@ -73,7 +73,3 @@ export async function uploadTranscriptionFile(
 export function jobEventsUrl(jobId: string): string {
   return `${apiBaseUrl}/transcriptions/${jobId}/events`;
 }
-
-export function transcriptDownloadUrl(jobId: string): string {
-  return `${apiBaseUrl}/transcriptions/${jobId}/download`;
-}

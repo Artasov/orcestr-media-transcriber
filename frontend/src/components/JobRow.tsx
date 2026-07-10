@@ -1,6 +1,18 @@
-import { Badge, Box, Button, Card, Flex, LinkButton, Text, TextArea } from '@orcestr/ui';
-import { LuCircleCheckBig, LuCircleX, LuClipboard, LuDownload, LuFileAudio, LuFileVideo, LuLoaderCircle } from 'react-icons/lu';
-import { transcriptDownloadUrl } from '../api/client';
+import { Badge, Box, Button, Card, Flex, Text, TextArea } from '@orcestr/ui';
+import { useEffect, useRef, useState } from 'react';
+import {
+  LuCheck,
+  LuCircleCheckBig,
+  LuCircleX,
+  LuClipboard,
+  LuExternalLink,
+  LuFileAudio,
+  LuFileText,
+  LuFileVideo,
+  LuFolderOpen,
+  LuLoaderCircle,
+} from 'react-icons/lu';
+import { isDesktopApp, openDesktopOutputFile, revealDesktopOutputFile } from '../api/desktop';
 import type { TranscriptionJob } from '../api/types';
 
 interface JobRowProps {
@@ -11,10 +23,38 @@ export function JobRow({ job }: JobRowProps) {
   const progress = progressValue(job);
   const done = job.status === 'completed';
   const failed = job.status === 'failed';
+  const [copied, setCopied] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copyResetTimer.current !== null) clearTimeout(copyResetTimer.current);
+    },
+    [],
+  );
 
   const copyText = async () => {
     if (!job.transcript) return;
-    await navigator.clipboard.writeText(job.transcript);
+    try {
+      await navigator.clipboard.writeText(job.transcript);
+      setActionError(null);
+      setCopied(true);
+      if (copyResetTimer.current !== null) clearTimeout(copyResetTimer.current);
+      copyResetTimer.current = setTimeout(() => setCopied(false), 3000);
+    } catch (error) {
+      setCopied(false);
+      setActionError(actionErrorMessage(error));
+    }
+  };
+
+  const runOutputAction = async (action: (path: string) => Promise<void>, path: string) => {
+    try {
+      setActionError(null);
+      await action(path);
+    } catch (error) {
+      setActionError(actionErrorMessage(error));
+    }
   };
 
   return (
@@ -64,32 +104,89 @@ export function JobRow({ job }: JobRowProps) {
       {done && (
         <Box className="result-panel">
           <Box className="output-paths">
-            {job.audio_path && (
-              <Text tone="muted" fs="12px">
-                MP3: {job.audio_path}
-              </Text>
-            )}
             {job.transcript_path && (
-              <Text tone="muted" fs="12px">
-                TXT: {job.transcript_path}
-              </Text>
+              <OutputFileRow
+                kind="TXT"
+                path={job.transcript_path}
+                onOpen={(path) => void runOutputAction(openDesktopOutputFile, path)}
+                onReveal={(path) => void runOutputAction(revealDesktopOutputFile, path)}
+              />
+            )}
+            {job.audio_path && (
+              <OutputFileRow
+                kind="MP3"
+                path={job.audio_path}
+                onOpen={(path) => void runOutputAction(openDesktopOutputFile, path)}
+                onReveal={(path) => void runOutputAction(revealDesktopOutputFile, path)}
+              />
             )}
           </Box>
           {job.transcript && <TextArea value={job.transcript} readOnly className="transcript-area" />}
-          <Flex className="result-actions" wrap g={2}>
-            <Button type="button" v="surface" onClick={copyText} disabled={!job.transcript} leftIcon={<LuClipboard size={16} />}>
-              Copy
-            </Button>
-            {job.transcript_path && (
-              <LinkButton href={transcriptDownloadUrl(job.id)} v="surface" leftIcon={<LuDownload size={16} />}>
-                Download TXT
-              </LinkButton>
-            )}
-          </Flex>
+          {job.transcript && (
+            <Flex className="result-actions" wrap g={2}>
+              <Button
+                type="button"
+                v="surface"
+                onClick={copyText}
+                leftIcon={copied ? <LuCheck size={16} /> : <LuClipboard size={16} />}
+              >
+                {copied ? 'Copied' : 'Copy'}
+              </Button>
+            </Flex>
+          )}
+          {actionError && (
+            <Text as="p" tone="danger" className="result-action-error">
+              {actionError}
+            </Text>
+          )}
         </Box>
       )}
     </Card>
   );
+}
+
+function OutputFileRow({
+  kind,
+  path,
+  onOpen,
+  onReveal,
+}: {
+  kind: 'TXT' | 'MP3';
+  path: string;
+  onOpen: (path: string) => void;
+  onReveal: (path: string) => void;
+}) {
+  return (
+    <Flex className="output-file" a="center" j="sb" g={3}>
+      <Flex className="output-file-copy" a="center" g={2}>
+        {kind === 'TXT' ? <LuFileText size={18} /> : <LuFileAudio size={18} />}
+        <Box>
+          <Text as="strong" fs="12px">
+            {kind}
+          </Text>
+          <Text as="p" tone="muted" fs="12px" title={path}>
+            {path}
+          </Text>
+        </Box>
+      </Flex>
+      {isDesktopApp() && (
+        <Flex className="output-file-actions" wrap g={2}>
+          <Button type="button" v="surface" size={2} onClick={() => onOpen(path)} leftIcon={<LuExternalLink size={15} />}>
+            Open File
+          </Button>
+          <Button type="button" v="surface" size={2} onClick={() => onReveal(path)} leftIcon={<LuFolderOpen size={15} />}>
+            Open Folder
+          </Button>
+        </Flex>
+      )}
+    </Flex>
+  );
+}
+
+function actionErrorMessage(error: unknown): string {
+  if (typeof error === 'string') return error;
+  if (error instanceof Error) return error.message;
+  return 'The action could not be completed';
 }
 
 function StatusBadge({ job }: { job: TranscriptionJob }) {

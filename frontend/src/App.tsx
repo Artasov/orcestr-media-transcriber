@@ -1,7 +1,7 @@
 import { Alert, Box, Button, Card, Checkbox, Field, Flex, IconButton, Text, TextField } from '@orcestr/ui';
-import type { DragEvent } from 'react';
+import type { DragEvent, MouseEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { LuFileAudio, LuRefreshCcw, LuTrash2, LuX } from 'react-icons/lu';
+import { LuCircleArrowUp, LuFileAudio, LuTrash2, LuX } from 'react-icons/lu';
 import {
   createTranscriptionsFromPaths,
   fetchTranscriptions,
@@ -9,9 +9,12 @@ import {
   uploadTranscriptionFile,
 } from './api/client';
 import {
+  checkForDesktopUpdate,
   isDesktopApp,
   listenForDesktopDrops,
+  openExternalUrl,
   selectDesktopMediaFiles,
+  type DesktopUpdate,
   type DesktopMediaFile,
 } from './api/desktop';
 import type { JobEventPayload, TranscriptionJob } from './api/types';
@@ -37,6 +40,7 @@ export function App() {
   const [openaiApiKey, setOpenaiApiKey] = useState(() => storedOpenaiApiKey());
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [availableUpdate, setAvailableUpdate] = useState<DesktopUpdate | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dragDepth = useRef(0);
   const eventSources = useRef<Map<string, EventSource>>(new Map());
@@ -104,6 +108,18 @@ export function App() {
     return () => {
       eventSources.current.forEach((source) => source.close());
       eventSources.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void checkForDesktopUpdate()
+      .then((update) => {
+        if (active) setAvailableUpdate(update);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -256,6 +272,11 @@ export function App() {
     addBrowserFiles(Array.from(event.dataTransfer.files));
   };
 
+  const openHeaderLink = (event: MouseEvent<HTMLAnchorElement>, url: string) => {
+    event.preventDefault();
+    void openExternalUrl(url);
+  };
+
   return (
     <main
       className={`app-shell${dragging && hasFiles ? ' is-dragging' : ''}`}
@@ -272,23 +293,31 @@ export function App() {
         accept="audio/*,video/*,.mkv,.m4v,.mov,.webm"
         onChange={(event) => submitFileInput(event.currentTarget.files)}
       />
-      <Flex as="header" className="app-header" a="center" j="sb" g={4}>
+      <Flex as="header" className="app-header" a="center" g={4}>
         <Box>
           <Text as="p" tone="primary" fs="13px" fw={750} className="eyebrow">
-            OpenAI transcription
+            <a
+              href="https://orcestr.com"
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => openHeaderLink(event, 'https://orcestr.com')}
+            >
+              orcestr.com
+            </a>{' '}
+            by{' '}
+            <a
+              href="https://github.com/Artasov"
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => openHeaderLink(event, 'https://github.com/Artasov')}
+            >
+              Artasov
+            </a>
           </Text>
           <Text as="h1" fs="32px" fw={780} lh="1.12">
             Media Transcriber
           </Text>
         </Box>
-        <IconButton
-          aria-label="Refresh"
-          title="Refresh"
-          icon={<LuRefreshCcw size={17} />}
-          onClick={loadJobs}
-          size={4}
-          v="surface"
-        />
       </Flex>
 
       <Field label="OpenAI token" htmlFor="openai-api-key" className="token-field">
@@ -373,6 +402,36 @@ export function App() {
             <JobRow key={job.id} job={job} />
           ))}
         </Box>
+      )}
+
+      {availableUpdate && (
+        <Card className="update-notice" v="surface" size={3} role="status">
+          <LuCircleArrowUp className="update-notice-icon" size={24} aria-hidden="true" />
+          <Box className="update-notice-copy">
+            <Text as="strong" fw={760}>
+              Version {availableUpdate.latestVersion} is available
+            </Text>
+            <Text as="p" tone="muted" fs="12px">
+              You are using version {availableUpdate.currentVersion}.
+            </Text>
+          </Box>
+          <Button
+            type="button"
+            size={2}
+            className="update-download-button"
+            onClick={() => void openExternalUrl(availableUpdate.downloadUrl)}
+          >
+            Download update
+          </Button>
+          <IconButton
+            aria-label="Dismiss update"
+            title="Dismiss update"
+            icon={<LuX size={15} />}
+            onClick={() => setAvailableUpdate(null)}
+            size={2}
+            v="ghost"
+          />
+        </Card>
       )}
     </main>
   );

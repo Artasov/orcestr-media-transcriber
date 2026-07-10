@@ -9,6 +9,12 @@ export interface DesktopMediaFile {
   size: number;
 }
 
+export interface DesktopUpdate {
+  currentVersion: string;
+  latestVersion: string;
+  downloadUrl: string;
+}
+
 interface DesktopDropHandlers {
   onEnter: () => void;
   onLeave: () => void;
@@ -48,6 +54,27 @@ export async function listenForDesktopDrops(handlers: DesktopDropHandlers): Prom
     handlers.onLeave();
     void desktopMediaFileDetails(event.payload.paths).then(handlers.onDrop).catch(handlers.onError);
   });
+}
+
+export async function openDesktopOutputFile(path: string): Promise<void> {
+  await invoke('open_output_file', { path });
+}
+
+export async function revealDesktopOutputFile(path: string): Promise<void> {
+  await invoke('reveal_output_file', { path });
+}
+
+export async function openExternalUrl(url: string): Promise<void> {
+  if (!isDesktopApp()) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  await invoke('open_external_url', { url });
+}
+
+export async function checkForDesktopUpdate(): Promise<DesktopUpdate | null> {
+  if (!isDesktopApp()) return null;
+  return invoke<DesktopUpdate | null>('check_for_update');
 }
 
 async function desktopMediaFileDetails(paths: string[]): Promise<DesktopMediaFile[]> {
