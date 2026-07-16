@@ -7,7 +7,6 @@ import math
 import os
 import random
 import re
-import shutil
 import subprocess
 import tempfile
 from collections.abc import Awaitable, Callable
@@ -17,6 +16,7 @@ from pathlib import Path
 import httpx
 
 from media_transcriber.config import Settings
+from media_transcriber.media_tools import media_tool_path
 
 logger = logging.getLogger("media_transcriber.transcription")
 
@@ -133,7 +133,7 @@ class OpenAITranscriber:
         return chunks
 
     async def detect_silences(self, audio_path: Path) -> list[tuple[float, float]]:
-        ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
+        ffmpeg = media_tool_path(self.settings, "ffmpeg")
         try:
             _stdout, stderr = await self.run_command(
                 [
@@ -180,7 +180,7 @@ class OpenAITranscriber:
             os.close(fd)
         chunk_path = Path(chunk_name)
         chunk_path.unlink(missing_ok=True)
-        ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
+        ffmpeg = media_tool_path(self.settings, "ffmpeg")
         duration = max(0.1, float(end_seconds) - float(start_seconds))
         try:
             await self.run_command(
@@ -362,7 +362,7 @@ class OpenAITranscriber:
         return False
 
     async def audio_duration(self, audio_path: Path) -> float:
-        ffprobe = shutil.which("ffprobe") or "ffprobe"
+        ffprobe = media_tool_path(self.settings, "ffprobe")
         stdout, _stderr = await self.run_command(
             [
                 ffprobe,

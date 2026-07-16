@@ -317,7 +317,7 @@ fn wait_for_backend(port: u16) -> Result<(), String> {
 fn create_main_window(app: &AppHandle) -> Result<(), String> {
     let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
         .title("Orcestr Media Transcriber")
-        .inner_size(1180.0, 780.0)
+        .inner_size(1100.0, 640.0)
         .min_inner_size(860.0, 560.0)
         .build()
         .map_err(|error| format!("Cannot create application window: {error}"))?;

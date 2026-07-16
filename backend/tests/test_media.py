@@ -1,14 +1,38 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
 
 from media_transcriber.config import Settings
 from media_transcriber.media import MediaSourceService
+from media_transcriber.media_tools import media_tool_path
 from media_transcriber.transcription import OpenAITranscriber
 
 DEFAULT_UPLOAD_MAX_MB = 10_000
+
+
+def test_media_tool_path_prefers_bundled_executable(tmp_path: Path) -> None:
+    executable_name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+    bundled_ffmpeg = tmp_path / executable_name
+    bundled_ffmpeg.touch()
+    settings = Settings(ORCESTR_FFMPEG_DIR=tmp_path)
+
+    assert media_tool_path(settings, "ffmpeg") == str(bundled_ffmpeg)
+
+
+def test_media_tool_path_finds_development_bundle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executable_name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+    bundled_ffmpeg = tmp_path / "dist" / "ffmpeg" / executable_name
+    bundled_ffmpeg.parent.mkdir(parents=True)
+    bundled_ffmpeg.touch()
+    monkeypatch.setattr("media_transcriber.media_tools.repo_root", lambda: tmp_path)
+
+    assert media_tool_path(Settings(ORCESTR_FFMPEG_DIR=None), "ffmpeg") == str(bundled_ffmpeg)
 
 
 def test_default_upload_limit_allows_large_local_recordings() -> None:
