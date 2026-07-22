@@ -1,6 +1,6 @@
 [package]
 name = "orcestr-media-transcriber-desktop"
-version = "0.1.5"
+version = "0.1.6"
 description = "Native desktop shell for Orcestr Media Transcriber"
 authors = ["Orcestr"]
 edition = "2021"
